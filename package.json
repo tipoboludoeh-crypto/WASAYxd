@@ -1,0 +1,32 @@
+{
+  "name": "onceview-fantasma",
+  "version": "1.0.0",
+  "description": "Bot WA",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "clean": "rm -rf session"
+  },
+  "keywords": [
+    "whatsapp",
+    "bot",
+    "fantasma"
+  ],
+  "author": "",
+  "license": "ISC",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "latest",
+    "fs-extra": "^11.2.0",
+    "gtts": "^0.2.1",
+    "node-fetch": "^3.3.2",
+    "pino": "^9.3.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.0"
+  }
+}
