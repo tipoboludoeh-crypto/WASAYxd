@@ -19,6 +19,8 @@ class Bot {
     constructor() {
         this.sock = null;
         this.reconnectAttempts = 0;
+        this.shuttingDown = false;
+        this.shutdownTimeout = null;
     }
 
     async start() {
@@ -100,24 +102,28 @@ class Bot {
         sock.ev.on('creds.update', saveCreds);
 
         sock.ev.on('messages.upsert', async ({ messages, type }) => {
-    if (type !== 'notify') return
+            if (type !== 'notify') return;
 
-    for (const message of messages) {
-        if (!message?.message) continue
+            for (const message of messages) {
+                if (!message?.message) continue;
 
-        const remoteJid = message.key.remoteJid
-        if (remoteJid === 'status@broadcast' || remoteJid.includes('broadcast')) {
-            continue
-        }
+                const remoteJid = message.key.remoteJid;
+                if (remoteJid === 'status@broadcast' || remoteJid?.includes('broadcast')) {
+                    continue;
+                }
 
-        // Comandos públicos (.say para todos)
-        const { handleCommands } = await import('./handlers/commandHandler.js')
-        await handleCommands(message, sock, config)
+                // Comandos públicos (.say para todos)
+                const { handleCommands } = await import('./handlers/commandHandler.js');
+                await handleCommands(message, sock, config);
 
-        // Luego el modo onceview (solo owner)
-        await handleMessage(message, sock, config)
-    }
-});
+                // Handler de música
+                const { handleMusic } = await import('./handlers/musicHandler.js');
+                await handleMusic(message, sock, config);
+
+                // Luego el modo onceview (solo owner)
+                await handleMessage(message, sock, config);
+            }
+        });
     }
 
     async askForPhoneNumber() {
@@ -173,10 +179,58 @@ class Bot {
     }
 }
 
-process.on('SIGINT', () => {
-    console.log('\n👋 Bot detenido');
-    process.exit(0);
-});
+// Manejo de Ctrl+C con doble confirmación
+let sigintCount = 0;
+let sigintTimer = null;
+
+const handleShutdown = () => {
+    if (sigintCount === 0) {
+        console.log('\n⚠️  Presiona Ctrl+C nuevamente en 3 segundos para detener el bot.');
+        console.log('   (La primera pulsación se cancela automáticamente)');
+        
+        sigintCount = 1;
+        
+        // Resetear el contador después de 3 segundos
+        sigintTimer = setTimeout(() => {
+            sigintCount = 0;
+            console.log('✅ Confirmación cancelada. Bot sigue funcionando.');
+        }, 3000);
+        
+        return;
+    }
+    
+    if (sigintTimer) {
+        clearTimeout(sigintTimer);
+    }
+    
+    console.log('\n👋 Deteniendo el bot...');
+    console.log('🔌 Cerrando conexión con WhatsApp...');
+    
+    // Aquí podrías agregar limpieza adicional si es necesario
+    if (bot.sock) {
+        bot.sock.end('Bot detenido por usuario');
+    }
+    
+    setTimeout(() => {
+        console.log('✅ Bot detenido correctamente.');
+        process.exit(0);
+    }, 1000);
+};
+
+process.on('SIGINT', handleShutdown);
+process.on('SIGTERM', handleShutdown);
+
+// También manejar Ctrl+C en Windows
+if (process.platform === 'win32') {
+    const rl = createInterface({
+        input: process.stdin,
+        output: process.stdout
+    });
+    
+    rl.on('SIGINT', () => {
+        process.emit('SIGINT');
+    });
+}
 
 const bot = new Bot();
 bot.start().catch(console.error);
